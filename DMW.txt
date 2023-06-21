@@ -1,0 +1,534 @@
+
+
+Q1. Write a query to create range partioned table:
+ Creates a table named- Sales consisting of four partitions, one for each quarter of
+sales. The column sale_date are the partitioning columns, while their values
+constitute the partitioning key of a specific row.
+ Each partition is given a name (sales_q1, sales_q2, ...), and each partition is
+contained in a separate tablespace (tsa, tsb, ...)
+ The columns for table must be prod_id, cust_id, promo_id, quantiy sold, amount_sold
+– all in number format and sale_date.
+
+SQL> CREATE TABLESPACE abc_tbs DATAFILE
+  2  'tbs.dbf' SIZE 10M;
+
+Tablespace created.
+
+SQL>  CREATE TABLESPACE tsa DATAFILE
+  2   'tsa.dbf' SIZE 10M;
+
+Tablespace created.
+
+SQL>  CREATE TABLESPACE tsc DATAFILE
+  2   'tsc.dbf' SIZE 10M;
+
+Tablespace created.
+
+SQL>  CREATE TABLESPACE tsd DATAFILE
+  2   'tsd.dbf' SIZE 10M;
+
+Tablespace created.
+
+SQL>  CREATE TABLESPACE tsb DATAFILE
+  2   'tsb.dbf' SIZE 10M;
+
+Tablespace created.
+
+SQL> CREATE TABLE sales
+  2    ( prod_id       NUMBER(6)
+  3    , cust_id       NUMBER
+  4    , time_id       DATE
+  5    , channel_id    CHAR(1)
+  6    , promo_id      NUMBER(6)
+  7    , quantity_sold NUMBER(3)
+  8    , amount_sold   NUMBER(10,2)
+  9    )
+ 10   PARTITION BY RANGE (time_id)
+ 11   ( PARTITION sales_q1_2006 VALUES LESS THAN (TO_DATE('01-APR-2006','dd-MON-yyyy'))
+ 12      TABLESPACE tsa
+ 13   , PARTITION sales_q2_2006 VALUES LESS THAN (TO_DATE('01-JUL-2006','dd-MON-yyyy'))
+ 14      TABLESPACE tsb
+ 15   , PARTITION sales_q3_2006 VALUES LESS THAN (TO_DATE('01-OCT-2006','dd-MON-yyyy'))
+ 16      TABLESPACE tsc
+ 17   , PARTITION sales_q4_2006 VALUES LESS THAN (TO_DATE('01-JAN-2007','dd-MON-yyyy'))
+ 18      TABLESPACE tsd
+ 19   );
+
+Table created.
+
+Q2. Create the same table as in Q1. With a different name with ENABLE ROW
+MOVEMENT. Bring out the difference in these two tables.
+
+SQL> CREATE TABLE sales_1
+  2    ( prod_id       NUMBER(6)
+  3    , cust_id       NUMBER
+  4    , time_id       DATE
+  5    , channel_id    CHAR(1)
+  6    , promo_id      NUMBER(6)
+  7    , quantity_sold NUMBER(3)
+  8    , amount_sold   NUMBER(10,2)
+  9    )
+ 10   STORAGE (INITIAL 100K NEXT 50K) LOGGING
+ 11   PARTITION BY RANGE (time_id)
+ 12   ( PARTITION sales_q1_2006 VALUES LESS THAN (TO_DATE('01-APR-2006','dd-MON-yyyy'))
+ 13      TABLESPACE tsa STORAGE (INITIAL 20K NEXT 10K)
+ 14   , PARTITION sales_q2_2006 VALUES LESS THAN (TO_DATE('01-JUL-2006','dd-MON-yyyy'))
+ 15      TABLESPACE tsb
+ 16   , PARTITION sales_q3_2006 VALUES LESS THAN (TO_DATE('01-OCT-2006','dd-MON-yyyy'))
+ 17      TABLESPACE tsc
+ 18   , PARTITION sales_q4_2006 VALUES LESS THAN (TO_DATE('01-JAN-2007','dd-MON-yyyy'))
+ 19      TABLESPACE tsd
+ 20   )
+ 21   ENABLE ROW MOVEMENT;
+
+Table created.
+
+
+SQL> select table_name,partition_name,num_rows
+  2  from user_tab_partitions
+  3  where table_name='SALES';
+
+TABLE_NAME                     PARTITION_NAME                   NUM_ROWS
+------------------------------ ------------------------------ ----------
+SALES                          SALES_Q1_2006
+SALES                          SALES_Q2_2006
+SALES                          SALES_Q3_2006
+SALES                          SALES_Q4_2006
+
+SQL> select table_name,partition_name,num_rows
+  2  from user_tab_partitions
+  3  where table_name='SALES_1';
+
+TABLE_NAME                     PARTITION_NAME                   NUM_ROWS
+------------------------------ ------------------------------ ----------
+SALES_1                        SALES_Q1_2006
+SALES_1                        SALES_Q2_2006
+SALES_1                        SALES_Q3_2006
+SALES_1                        SALES_Q4_2006
+
+
+SQL> insert into sales values (1,2,to_date('31-03-2006','DD-MM-YYYY'),'c',2,3,400);
+
+1 row created.
+
+SQL> insert into sales values (1,2,to_date('31-03-2006','DD-MM-YYYY'),'d',2,3,400);
+
+1 row created.
+
+SQL> insert into sales values (1,2,to_date('31-03-2006','DD-MM-YYYY'),'e',2,3,400);
+
+1 row created.
+
+SQL> insert into sales values (1,2,to_date('31-03-2006','DD-MM-YYYY'),'c',6,77,123);
+
+1 row created.
+
+SQL> insert into sales values (1,2,to_date('31-03-2006','DD-MM-YYYY'),'d',20,88,344);
+
+1 row created.
+
+SQL> select * from sales partition(sales_q1_2006);
+
+   PROD_ID    CUST_ID TIME_ID   C   PROMO_ID QUANTITY_SOLD AMOUNT_SOLD
+---------- ---------- --------- - ---------- ------------- -----------
+         1          2 31-MAR-06 c          2             3         400
+         1          2 31-MAR-06 d          2             3         400
+         1          2 31-MAR-06 e          2             3         400
+         1          2 31-MAR-06 c          6            77         123
+         1          2 31-MAR-06 d         20            88         344
+
+
+
+Q3. Create a table with list partition as follows:
+ Table having columns deptno, deptname, quarterly_sales and state.
+ Create partition on state:
+ Northwest on OR and WA
+ Southwest on AZ, UT and NM
+ northeast on NY, VM and NJ
+ southeast on FL and GA
+ northcentral on SD and WI
+ southcentral on OK and TX
+ Add the following entries into the table and make conclusion to which partition the
+entry maps:
+ (10, &#39;accounting&#39;, 100, &#39;WA&#39;)
+ (20, &#39;R&amp;D&#39;, 150, &#39;OR&#39;)
+ (30, &#39;sales&#39;, 100, &#39;FL&#39;)
+ (40, &#39;HR&#39;, 10, &#39;TX&#39;)
+ (50, &#39;systems engineering&#39;, 10, &#39;CA&#39;)
+
+SQL> create table Travel(
+  2  deptno number(5),
+  3  deptname varchar2(20),
+  4  quarterly_sales number(10),
+  5  state varchar2(5))
+  6  partition by list(state)(
+  7  partition Northwest values('OR','WA'),
+  8  partition Southwest values('AZ','UT','NM'),
+  9  partition Northeast values('NY','VM','NJ'),
+ 10  partition Southeast values('FL','GA'),
+ 11  partition Northcentral values('SD','WI'),
+ 12  partition Southcentral values('OK','TX')
+ 13  );
+
+Table created.
+
+SQL> insert into Travel values(10, 'accounting', 100, 'WA');
+
+1 row created.
+
+SQL> insert into Travel values(20, 'R and D', 150, 'OR');
+
+1 row created.
+
+SQL> insert into Travel values(30, 'sales', 100, 'FL');
+
+1 row created.
+
+SQL> insert into Travel values(40, 'HR', 10, 'TX');
+
+1 row created.
+
+Q4. Create a multi-column range partitioned table as directed:
+ Create a table with the actual DATE information in three separate columns: year,
+month, and day. Also amount_ sold.
+ Create following partitions:
+ Before 2001: Less than jan 2001
+ Less than april 2001
+ Less than july 2001
+ Less than oct 2001
+ Less than jan 2002
+
+ Future with max incoming value
+ Insert values into table and show to which partition does the value belong.
+ (2001,3,17, 2000);
+ (2001,11,1, 5000);
+ (2002,1,1, 4000);
+
+Make conclusion for each result.
+
+SQL>  CREATE TABLE sales_2
+  2        ( year       NUMBER(4)
+  3        , month      NUMBER(2)
+  4        , day        NUMBER(2)
+  5        , amount_sold   NUMBER(10,2)
+  6        )
+  7     PARTITION BY RANGE (year,month)
+  8       (PARTITION before2001 VALUES LESS THAN (2001,1),
+  9       PARTITION q1_2001    VALUES LESS THAN (2001,4),
+ 10       PARTITION q2_2001    VALUES LESS THAN (2001,7),
+ 11       PARTITION q3_2001    VALUES LESS THAN (2001,10),
+ 12       PARTITION q4_2001    VALUES LESS THAN (2002,1),
+ 13       PARTITION future     VALUES LESS THAN (MAXVALUE,0));
+
+Table created.
+
+SQL> insert into sales_2 values (2001,3,17, 2000);
+
+1 row created.
+
+SQL> insert into sales_2 values (2001,11,1, 5000);
+
+1 row created.
+
+SQL> insert into sales_2 values (2002,1,1, 4000);
+
+1 row created.
+
+SQL> select * from sales_2 partition(q1_2001);
+
+      YEAR      MONTH        DAY AMOUNT_SOLD
+---------- ---------- ---------- -----------
+      2001          3         17        2000
+
+SQL> select * from sales_2 partition(q2_2001);
+
+no rows selected
+
+SQL> select * from sales_2 partition(q3_2001);
+
+no rows selected
+
+SQL> select * from sales_2 partition(q4_2001);
+
+      YEAR      MONTH        DAY AMOUNT_SOLD
+---------- ---------- ---------- -----------
+      2001         11          1        5000
+
+Q5. Create a multicolumn partitioned table as directed:
+ Table supplier_parts, storing the information about which suppliers deliver which
+parts. To distribute the data in equal-sized partitions, it is not sufficient to partition
+the table based on the supplier_id, because some suppliers might provide hundreds of
+thousands of parts, while others provide only a few specialty parts. Instead, you
+partition the table on (supplier_id, partnum) to manually enforce equal-sized
+partitions.
+ Insert the following values
+(5,5, 1000); (5z,150, 1000); (10,100, 1000);
+
+SQL>  CREATE TABLE sales_3
+  2        ( supplier_id  NUMBER
+  3        , partnum      NUMBER
+  4        , price        NUMBER
+  5        )
+  6     PARTITION BY RANGE (supplier_id,partnum)
+  7       (PARTITION p1 VALUES LESS THAN (10,100),
+  8       PARTITION p2  VALUES LESS THAN (10,200),
+  9       PARTITION p3  VALUES LESS THAN (MAXVALUE,MAXVALUE));
+
+Table created.
+
+SQL> INSERT INTO sales_3 VALUES (5,5, 1000);
+
+1 row created.
+
+SQL> INSERT INTO sales_3 VALUES (10,100, 1000);
+
+1 row created.
+
+SQL> INSERT INTO sales_3 VALUES (5,150, 1000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO sales_3 VALUES (5,250, 1000);
+
+1 row created.
+
+Q6. Create interval partitioned table as directed:
+ Creates a table named- Sales consisting of four partitions, one for each quarter of
+sales. Each partition is given a name (sales_q1, sales_q2, ...)
+ The columns for table must be prod_id, cust_id, promo_id, quantify sold,
+amount_sold –all in number format and time_id in date format
+ Perform internal partitioning on time_id and take interval of 01 months.
+
+SQL> CREATE TABLE interval_1
+  2        ( prod_id       NUMBER(6)
+  3       , cust_id       NUMBER
+  4       , time_id       DATE
+  5       , channel_id    CHAR(1)
+  6       , promo_id      NUMBER(6)
+  7       , quantity_sold NUMBER(3)
+  8       , amount_sold   NUMBER(10,2)
+  9       )
+ 10      PARTITION BY RANGE (time_id)
+ 11       INTERVAL(NUMTOYMINTERVAL(1, 'MONTH'))
+ 12       (
+ 13        PARTITION sales_q1 VALUES LESS THAN (TO_DATE('01-04-2022', 'DD-MM-YYYY')),
+ 14        PARTITION sales_q2 VALUES LESS THAN (TO_DATE('01-07-2022', 'DD-MM-YYYY')),
+ 15        PARTITION sales_q3 VALUES LESS THAN (TO_DATE('01-10-2022', 'DD-MM-YYYY')),
+ 16        PARTITION sales_q4 VALUES LESS THAN (TO_DATE('01-01-2023', 'DD-MM-YYYY'))
+ 17        );
+
+Table created.
+
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1001, 500, TO_DATE('01-01-2022', 'DD-MM-YYYY'), 'A', 6001, 10, 1000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1002, 501, TO_DATE('01-02-2022', 'DD-MM-YYYY'), 'B', 6002, 20, 2000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1003, 502, TO_DATE('01-03-2022', 'DD-MM-YYYY'), 'C', 6003, 30, 3000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1004, 503, TO_DATE('01-04-2022', 'DD-MM-YYYY'), 'D', 6004, 40, 4000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1005, 504, TO_DATE('01-05-2022', 'DD-MM-YYYY'), 'E', 6005, 50, 5000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1006, 505, TO_DATE('01-06-2022', 'DD-MM-YYYY'), 'F', 6006, 60, 6000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1007, 506, TO_DATE('01-07-2022', 'DD-MM-YYYY'), 'G', 6007, 70, 7000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1008, 507, TO_DATE('01-08-2022', 'DD-MM-YYYY'), 'H', 6008, 80, 8000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1009, 508, TO_DATE('01-09-2022', 'DD-MM-YYYY'), 'I', 6009, 90, 9000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1010, 509, TO_DATE('01-10-2022', 'DD-MM-YYYY'), 'J', 6010, 100, 10000);
+
+1 row created.
+
+SQL>
+SQL> INSERT INTO interval_1 (prod_id, cust_id, time_id, channel_id, promo_id, quantity_sold, amount_sold)
+  2  VALUES (1011, 510, TO_DATE('01-11-2022', 'DD-MM-YYYY'), 'K', 6011, 110, 11000);
+
+1 row created.
+
+SQL> select table_name,partition_name,num_rows
+  2     from user_tab_partitions
+  3     where table_name='INTERVAL_1';
+
+TABLE_NAME                     PARTITION_NAME                   NUM_ROWS
+------------------------------ ------------------------------ ----------
+INTERVAL_1                     SALES_Q1
+INTERVAL_1                     SALES_Q2
+INTERVAL_1                     SALES_Q3
+INTERVAL_1                     SALES_Q4
+
+SQL> select * from INTERVAL_1 partition(sales_q1);
+
+   PROD_ID    CUST_ID TIME_ID   C   PROMO_ID QUANTITY_SOLD AMOUNT_SOLD
+---------- ---------- --------- - ---------- ------------- -----------
+      1001        500 01-JAN-22 A       6001            10        1000
+      1002        501 01-FEB-22 B       6002            20        2000
+      1003        502 01-MAR-22 C       6003            30        3000
+
+SQL> select * from INTERVAL_1 partition(sales_q2);
+
+   PROD_ID    CUST_ID TIME_ID   C   PROMO_ID QUANTITY_SOLD AMOUNT_SOLD
+---------- ---------- --------- - ---------- ------------- -----------
+      1004        503 01-APR-22 D       6004            40        4000
+      1005        504 01-MAY-22 E       6005            50        5000
+      1006        505 01-JUN-22 F       6006            60        6000
+
+SQL> select * from INTERVAL_1 partition(sales_q3);
+
+   PROD_ID    CUST_ID TIME_ID   C   PROMO_ID QUANTITY_SOLD AMOUNT_SOLD
+---------- ---------- --------- - ---------- ------------- -----------
+      1007        506 01-JUL-22 G       6007            70        7000
+      1008        507 01-AUG-22 H       6008            80        8000
+      1009        508 01-SEP-22 I       6009            90        9000
+
+SQL> select * from INTERVAL_1 partition(sales_q4);
+
+   PROD_ID    CUST_ID TIME_ID   C   PROMO_ID QUANTITY_SOLD AMOUNT_SOLD
+---------- ---------- --------- - ---------- ------------- -----------
+      1010        509 01-OCT-22 J       6010           100       10000
+      1011        510 01-NOV-22 K       6011           110       11000
+
+7]
+Demonstrate Composite partitioning technique as directed
+ Implement range list partitioning for customer table having attributes cust_id,
+cust_name, cust_state, and time_id
+ Perform range partitioning on time-id and list partitioning on state attributes.
+Also create maxvalue and default partition for range and list partition
+respectively.
+Partition definitions for range are as below:
+ Partition old should accept values less than 01-Jan-2005
+ Partition acquired should accept values less than 01-Jan-2010
+ Partition recent should accept values less than 01-Jan-2015
+ Partition unknown should accept values greater than 01-Jan-2015
+Partition definitions for list are as below:
+ Partition west should accept values (‘MH’, ‘GJ’)
+ Partition south should accept values (‘TN’, ‘AP’)
+ Partition north should accept values (‘UP’, ‘HP’)
+ Partition unknown should accept any other state.
+
+SQL> CREATE TABLE quarterly_regional_sales
+  2  (
+  3    cust_id number,
+  4    cust_name varchar2(50),
+  5    cust_state varchar2(2),
+  6    time_id DATE
+  7  )
+  8  TABLESPACE ts
+  9  PARTITION BY RANGE (time_id)
+ 10  SUBPARTITION BY LIST (cust_state)
+ 11  (
+ 12    PARTITION old VALUES LESS THAN (TO_DATE('1-JAN-2005','DD-MON-YYYY'))
+ 13    (
+ 14      SUBPARTITION old_west VALUES ('MH','GJ'),
+ 15      SUBPARTITION old_south VALUES ('TN','AP'),
+ 16      SUBPARTITION old_north VALUES ('UP','HP')
+ 17    ),
+ 18    PARTITION acquired VALUES LESS THAN (TO_DATE('1-JAN-2010','DD-MON-YYYY'))
+ 19    (
+ 20      SUBPARTITION acq_west VALUES ('MH','GJ'),
+ 21      SUBPARTITION acq_south VALUES ('TN','AP'),
+ 22      SUBPARTITION acq_north VALUES ('UP','HP')
+ 23    ),
+ 24    PARTITION recent VALUES LESS THAN (TO_DATE('1-JAN-2015','DD-MON-YYYY'))
+ 25    (
+ 26      SUBPARTITION rec_west VALUES ('MH','GJ'),
+ 27      SUBPARTITION rec_south VALUES ('TN','AP'),
+ 28      SUBPARTITION rec_north VALUES ('UP','HP')
+ 29    ),
+ 30    PARTITION unknown VALUES LESS THAN (MAXVALUE)
+ 31    (
+ 32      SUBPARTITION unknown_subpart VALUES ('XX')
+ 33    )
+ 34  );
+
+Table created.
+
+
+Q8. Demonstrate reference partitioning as directed:
+ Create parent table Orders with the attributes order_id, order_date,
+customer_id, shipper_id.
+ Perform Range partitioning on Order Date. Take Range of 03 Months i.e. 01 quarter
+ Create child table order_items with attributes order_id, product_id, price and
+quantity.
+ Perform Reference partitioning on child table.
+ Delete the created partitions.
+SQL>
+
+-- create parent table with range partitioning
+CREATE TABLE orders (
+    order_id NUMBER,
+    order_date DATE,
+    customer_id NUMBER,
+    shipper_id NUMBER
+)
+PARTITION BY RANGE (order_date)
+INTERVAL(NUMTOYMINTERVAL(3,'MONTH'))
+(
+    PARTITION p1 VALUES LESS THAN (TO_DATE('01-JAN-2022','DD-MON-YYYY'))
+);
+
+-- create child table with reference partitioning
+CREATE TABLE order_items (
+    order_id NUMBER,
+    product_id NUMBER,
+    price NUMBER,
+    quantity NUMBER
+)
+PARTITION BY REFERENCE (fk_order)
+(
+    PARTITION p_default VALUES (DEFAULT)
+);
+
+-- add a foreign key constraint to the child table
+ALTER TABLE order_items
+ADD CONSTRAINT fk_order
+FOREIGN KEY (order_id)
+REFERENCES orders (order_id)
+ON DELETE CASCADE;
+
+-- delete the partitions
+ALTER TABLE orders
+DROP PARTITION p1;
+
+ALTER TABLE order_items
+TRUNCATE PARTITION p_default;
+
